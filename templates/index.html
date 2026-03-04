@@ -232,6 +232,25 @@
             <button class="tab" onclick="showTab('create-team')">🏗️ Создать команду</button>
             <button class="tab" onclick="showTab('create-channel')">📢 Создать канал</button>
             <button class="tab" onclick="showTab('bulk')">📦 Массовое создание</button>
+            <button class="tab" onclick="showTab('keycloak')">🔄 Keycloak</button>
+            <!-- Вкладка Keycloak -->
+<div id="tab-keycloak" class="tab-content">
+    <h2>Синхронизация с Keycloak</h2>
+    
+    <div style="margin-bottom: 20px; padding: 20px; background: #f0f8ff; border-radius: 5px;">
+        <p><strong>Настройки Keycloak:</strong></p>
+        <p>URL: https://auth.alpha.kg</p>
+        <p>Realm: mattermost</p>
+        <p>Client: admin-cli</p>
+    </div>
+    
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button class="btn btn-info" onclick="loadKeycloakUsers()">👁️ Просмотр пользователей Keycloak</button>
+        <button class="btn btn-success" onclick="syncKeycloakUsers()">🔄 Синхронизировать с Mattermost</button>
+    </div>
+    
+    <div id="keycloakResult"></div>
+</div>
         </div>
 
         <!-- Вкладка: Пользователи -->
@@ -1071,6 +1090,92 @@ sidorov@alpha.kg,sidorov,Сидор,Сидоров,TempPass123</textarea>
             loadUsers();
             loadTeamsForChannels();
         };
+
+// Загрузка пользователей из Keycloak
+function loadKeycloakUsers() {
+    document.getElementById('keycloakResult').innerHTML = '<div class="loading">Загрузка...</div>';
+    
+    fetch('/api/keycloak/users')
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('keycloakResult').innerHTML = `<div style="color:red">❌ ${data.error}</div>`;
+                return;
+            }
+            
+            let html = '<h3>Пользователи в Keycloak:</h3>';
+            html += '<table><tr><th>Username</th><th>Email</th><th>Имя</th><th>Статус</th></tr>';
+            
+            data.forEach(u => {
+                const status = u.enabled ? '✅ Активен' : '❌ Неактивен';
+                html += `<tr>
+                    <td>${u.username}</td>
+                    <td>${u.email}</td>
+                    <td>${u.first_name} ${u.last_name}</td>
+                    <td>${status}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            document.getElementById('keycloakResult').innerHTML = html;
+        })
+        .catch(err => {
+            document.getElementById('keycloakResult').innerHTML = `<div style="color:red">❌ Ошибка: ${err}</div>`;
+        });
+}
+
+// Синхронизация пользователей
+function syncKeycloakUsers() {
+    if (!confirm('Синхронизировать пользователей из Keycloak с Mattermost?')) return;
+    
+    document.getElementById('keycloakResult').innerHTML = '<div class="loading">Синхронизация...</div>';
+    
+    fetch('/api/keycloak/sync', {method: 'POST'})
+        .then(res => res.json())
+        .then(result => {
+            if (result.error) {
+                document.getElementById('keycloakResult').innerHTML = `<div style="color:red">❌ ${result.error}</div>`;
+                return;
+            }
+            
+            let html = '<h3>Результат синхронизации:</h3>';
+            
+            if (result.created && result.created.length > 0) {
+                html += '<p style="color:green">✅ Создано пользователей: ' + result.created.length + '</p>';
+                html += '<ul>';
+                result.created.forEach(u => {
+                    html += `<li>${u.username} (${u.email})</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (result.updated && result.updated.length > 0) {
+                html += '<p style="color:blue">🔄 Обновлено пользователей: ' + result.updated.length + '</p>';
+                html += '<ul>';
+                result.updated.forEach(u => {
+                    html += `<li>${u.username} (${u.email})</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (result.skipped && result.skipped.length > 0) {
+                html += '<p style="color:gray">⏭️ Пропущено: ' + result.skipped.length + '</p>';
+            }
+            
+            if (result.errors && result.errors.length > 0) {
+                html += '<p style="color:red">❌ Ошибок: ' + result.errors.length + '</p>';
+            }
+            
+            document.getElementById('keycloakResult').innerHTML = html;
+            
+            // Обновляем список пользователей
+            loadUsers();
+        })
+        .catch(err => {
+            document.getElementById('keycloakResult').innerHTML = `<div style="color:red">❌ Ошибка: ${err}</div>`;
+        });
+}
+
     </script>
 </body>
 </html>
