@@ -100,6 +100,87 @@ git clone https://github.com/lupetr-ux/mattermost-admin.git
 cd mattermost-admin
 git checkout feature/keycloak-integration
 
+## 🔑 Интеграция с Keycloak
+
+Эта версия поддерживает синхронизацию пользователей из Keycloak с Mattermost.
+
+### Настройка Keycloak (пошагово)
+
+#### Шаг 1: Создайте клиента в Keycloak
+
+1. Войдите в админку Keycloak (https://auth.alpha.kg/admin)
+2. Выберите ваш realm (например, `mattermost`)
+3. В левом меню перейдите в **Clients**
+4. Нажмите **Create client**
+
+![Создание клиента](screenshots/keycloak-create-client.png)
+
+**Настройки клиента:**
+
+| Вкладка | Поле | Значение |
+|---------|------|----------|
+| **General** | Client ID | `mattermost-admin-api` |
+| | Name | `Mattermost Admin API` |
+| | Description | `Для синхронизации с админкой` |
+| **Capability config** | Client authentication | **ON** |
+| | Authorization | OFF |
+| | Service accounts roles | **ON** |
+| | Standard flow | OFF |
+| | Direct access grants | OFF |
+| **Login settings** | Root URL | (оставить пустым) |
+| | Valid redirect URIs | (оставить пустым) |
+
+![Настройки клиента](screenshots/keycloak-client-settings.png)
+
+#### Шаг 2: Настройте Service Account Roles
+
+1. После создания клиента перейдите на вкладку **Service account roles**
+2. В разделе **Client Roles** выберите **realm-management**
+3. В списке **Available Roles** найдите и добавьте:
+   - ✅ `view-users` (просмотр пользователей)
+   - ✅ `query-users` (поиск пользователей)
+   - ✅ `view-realm` (просмотр realm)
+   - ✅ `query-groups` (опционально)
+
+![Service account roles](screenshots/keycloak-service-roles.png)
+
+4. Нажмите **Add selected**
+
+#### Шаг 3: Получите Client Secret
+
+1. Перейдите на вкладку **Credentials**
+2. Нажмите кнопку **Regenerate** (если нужно)
+3. **Скопируйте Client Secret** (длинная строка)
+
+![Client Secret](screenshots/keycloak-credentials.png)
+
+### Настройка приложения
+
+#### Шаг 4: Добавьте переменные в docker-compose.yml
+
+Отредактируйте файл `docker-compose.yml` и добавьте секцию `environment`:
+
+```yaml
+services:
+  webapp:
+    build: .
+    container_name: mattermost-admin
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      # Mattermost
+      - TOKEN=ваш_токен_mattermost
+      - MATTERMOST_HOST=http://172.17.0.1:8065
+      
+      # Keycloak (ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ)
+      - KEYCLOAK_URL=https://адрес сервераkeycloak
+      - KEYCLOAK_REALM=mattermost
+      - KEYCLOAK_CLIENT=mattermost-admin-api
+      - KEYCLOAK_SECRET=вставьте_скопированный_секрет_сюда
+
+
+
 📝 Лицензия
 MIT
 👨‍💻 Автор
