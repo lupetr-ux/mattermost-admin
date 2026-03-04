@@ -8,7 +8,3 @@ services:
     environment:
       - TOKEN=r561ao5u57nnidj3cq6ynimo9c
       - MATTERMOST_HOST=http://172.17.0.1:8065
-      - KEYCLOAK_URL=https://auth.alpha.kg
-      - KEYCLOAK_REALM=mattermost
-      - KEYCLOAK_CLIENT=mattermost-admin-api
-      - KEYCLOAK_SECRET=yYOzx8qDXU1u0n2SzRia4DA9IX6by80H
