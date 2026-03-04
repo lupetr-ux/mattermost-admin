@@ -86,8 +86,21 @@ mattermost-admin/
 
     Токен администратора Mattermost
 
-📝 Лицензия
+## 🌿 Версии проекта
 
+### main (стабильная версия)
+Базовая админка Mattermost без Keycloak.
+
+### feature/keycloak-integration (с Keycloak)
+Версия с интеграцией Keycloak для синхронизации пользователей.
+
+**Использование версии с Keycloak:**
+```bash
+git clone https://github.com/lupetr-ux/mattermost-admin.git
+cd mattermost-admin
+git checkout feature/keycloak-integration
+
+📝 Лицензия
 MIT
 👨‍💻 Автор
 
