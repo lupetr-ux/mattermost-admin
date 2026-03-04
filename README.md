@@ -103,5 +103,4 @@ git checkout feature/keycloak-integration
 📝 Лицензия
 MIT
 👨‍💻 Автор
-
 lupetr-ux
