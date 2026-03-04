@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mattermost Admin Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .header h1 small {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-left: 10px;
+        }
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 12px 24px;
+            background: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .tab:hover {
+            background: #667eea;
+            color: white;
+        }
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 0 2px;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            font-size: 28px;
+            cursor: pointer;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #666;
+        }
+        .search-box {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .role-badge {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #cce5ff;
+            color: #004085;
+        }
+        .action-group {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Mattermost Admin Panel <small>Управление пользователями, командами и каналами</small></h1>
+        <a href="/logout" class="logout-btn">Выйти</a>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('users')">👥 Пользователи</button>
+            <button class="tab" onclick="showTab('teams')">🏢 Команды</button>
+            <button class="tab" onclick="showTab('channels')">📢 Каналы</button>
+            <button class="tab" onclick="showTab('create-user')">➕ Создать пользователя</button>
+            <button class="tab" onclick="showTab('create-team')">🏗️ Создать команду</button>
+            <button class="tab" onclick="showTab('create-channel')">📢 Создать канал</button>
+            <button class="tab" onclick="showTab('bulk')">📦 Массовое создание</button>
+        </div>
+
+        <!-- Вкладка: Пользователи -->
+        <div id="tab-users" class="tab-content active">
+            <h2>Список пользователей</h2>
+            <div class="search-box">
+                <input type="text" id="userSearch" placeholder="Поиск по имени, email или username..." onkeyup="filterUsers()">
+                <button class="btn btn-info" onclick="loadUsers()">🔄 Обновить</button>
+            </div>
+            <div id="usersList"></div>
+        </div>
+
+        <!-- Вкладка: Команды -->
+        <div id="tab-teams" class="tab-content">
+            <h2>Управление командами</h2>
+            <div class="search-box">
+                <input type="text" id="teamSearch" placeholder="Поиск по названию команды..." onkeyup="filterTeams()">
+                <button class="btn btn-info" onclick="loadTeams()">🔄 Обновить</button>
+            </div>
+            <div id="teamsList"></div>
+        </div>
+
+        <!-- Вкладка: Каналы -->
+        <div id="tab-channels" class="tab-content">
+            <h2>Управление каналами</h2>
+            <div class="form-group">
+                <label>Выберите команду:</label>
+                <select id="channelTeamSelect" onchange="loadChannels()">
+                    <option value="">-- Выберите команду --</option>
+                </select>
+            </div>
+            <div class="search-box">
+                <input type="text" id="channelSearch" placeholder="Поиск по названию канала..." onkeyup="filterChannels()">
+                <button class="btn btn-info" onclick="loadChannels()">🔄 Обновить</button>
+            </div>
+            <div id="channelsList"></div>
+        </div>
+
+        <!-- Вкладка: Создание пользователя -->
+        <div id="tab-create-user" class="tab-content">
+            <h2>Создание нового пользователя</h2>
+            <form id="createUserForm">
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="create_email" required>
+                </div>
+                <div class="form-group">
+                    <label>Username *</label>
+                    <input type="text" id="create_username" required>
+                </div>
+                <div class="form-group">
+                    <label>Имя</label>
+                    <input type="text" id="create_firstname">
+                </div>
+                <div class="form-group">
+                    <label>Фамилия</label>
+                    <input type="text" id="create_lastname">
+                </div>
+                <div class="form-group">
+                    <label>Пароль *</label>
+                    <input type="password" id="create_password" required>
+                </div>
+                <button type="submit" class="btn btn-success">Создать пользователя</button>
+            </form>
+            <div id="createUserResult" style="margin-top: 20px;"></div>
+        </div>
+
+        <!-- Вкладка: Создание команды -->
+        <div id="tab-create-team" class="tab-content">
+            <h2>Создание новой команды</h2>
+            <form id="createTeamForm">
+                <div class="form-group">
+                    <label>Название (name) *</label>
+                    <input type="text" id="team_name" required placeholder="например: development">
+                    <small>Только латиница, цифры, тире. Без пробелов.</small>
+                </div>
+                <div class="form-group">
+                    <label>Отображаемое название *</label>
+                    <input type="text" id="team_display_name" required placeholder="например: Разработка">
+                </div>
+                <div class="form-group">
+                    <label>Тип команды</label>
+                    <select id="team_type">
+                        <option value="O">Открытая (любой может присоединиться)</option>
+                        <option value="P">Приватная (только по приглашению)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success">Создать команду</button>
+            </form>
+            <div id="createTeamResult" style="margin-top: 20px;"></div>
+        </div>
+
+        <!-- Вкладка: Создание канала -->
+        <div id="tab-create-channel" class="tab-content">
+            <h2>Создание нового канала</h2>
+            <form id="createChannelForm">
+                <div class="form-group">
+                    <label>Команда *</label>
+                    <select id="channel_team_id" required>
+                        <option value="">-- Загрузка команд... --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Название (name) *</label>
+                    <input type="text" id="channel_name" required placeholder="например: general">
+                    <small>Только латиница, цифры, тире. Без пробелов.</small>
+                </div>
+                <div class="form-group">
+                    <label>Отображаемое название *</label>
+                    <input type="text" id="channel_display_name" required placeholder="например: Общий">
+                </div>
+                <div class="form-group">
+                    <label>Тип канала</label>
+                    <select id="channel_type">
+                        <option value="O">Публичный (виден всем)</option>
+                        <option value="P">Приватный (только по приглашению)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Описание (purpose)</label>
+                    <input type="text" id="channel_purpose" placeholder="Для чего этот канал">
+                </div>
+                <div class="form-group">
+                    <label>Тема (header)</label>
+                    <input type="text" id="channel_header" placeholder="Тема канала">
+                </div>
+                <button type="submit" class="btn btn-success">Создать канал</button>
+            </form>
+            <div id="createChannelResult" style="margin-top: 20px;"></div>
+        </div>
+
+        <!-- Вкладка: Массовое создание -->
+        <div id="tab-bulk" class="tab-content">
+            <h2>Массовое создание пользователей</h2>
+            <p>Формат: email,username,имя,фамилия,пароль (каждая строка - новый пользователь)</p>
+            <div class="form-group">
+                <textarea id="bulkData" rows="10" style="width:100%; font-family: monospace;">ivanov@alpha.kg,ivanov,Иван,Иванов,TempPass123
+petrov@alpha.kg,petrov,Петр,Петров,TempPass123
+sidorov@alpha.kg,sidorov,Сидор,Сидоров,TempPass123</textarea>
+            </div>
+            <button class="btn btn-success" onclick="bulkCreate()">Создать всех</button>
+            <div id="bulkResult" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования пользователя -->
+    <div id="editUserModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editUserModal')">&times;</span>
+            <h2>Редактировать пользователя</h2>
+            <form id="editUserForm">
+                <input type="hidden" id="edit_user_id">
+                <div class="form-group">
+                    <label>Имя</label>
+                    <input type="text" id="edit_firstname">
+                </div>
+                <div class="form-group">
+                    <label>Фамилия</label>
+                    <input type="text" id="edit_lastname">
+                </div>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно добавления пользователя в команду -->
+    <div id="addUserToTeamModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addUserToTeamModal')">&times;</span>
+            <h2>Добавить пользователя в команду</h2>
+            <form id="addUserToTeamForm">
+                <input type="hidden" id="team_user_id">
+                <div class="form-group">
+                    <label>Выберите команду</label>
+                    <select id="team_select" required></select>
+                </div>
+                <button type="submit" class="btn btn-success">Добавить</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно управления участниками команды -->
+    <div id="teamMembersModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('teamMembersModal')">&times;</span>
+            <h2 id="teamMembersTitle">Участники команды</h2>
+            <div id="teamMembersList"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно управления участниками канала -->
+    <div id="channelMembersModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('channelMembersModal')">&times;</span>
+            <h2 id="channelMembersTitle">Участники канала</h2>
+            <div id="channelMembersList"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно добавления пользователя в канал -->
+    <div id="addUserToChannelModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addUserToChannelModal')">&times;</span>
+            <h2>Добавить пользователя в канал</h2>
+            <form id="addUserToChannelForm">
+                <input type="hidden" id="channel_id">
+                <input type="hidden" id="channel_user_id">
+                <div class="form-group">
+                    <label>Выберите пользователя</label>
+                    <select id="channel_user_select" required></select>
+                </div>
+                <button type="submit" class="btn btn-success">Добавить</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Переключение вкладок
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            if (tabName === 'users') loadUsers();
+            if (tabName === 'teams') loadTeams();
+            if (tabName === 'channels') loadTeamsForChannels();
+        }
+
+        // Закрытие модальных окон
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // ==============================================
+        // ПОЛЬЗОВАТЕЛИ
+        // ==============================================
+
+        function loadUsers() {
+            document.getElementById('usersList').innerHTML = '<div class="loading">Загрузка...</div>';
+            
+            fetch('/api/users')
+                .then(res => res.json())
+                .then(users => {
+                    if (users.error) {
+                        document.getElementById('usersList').innerHTML = `<div style="color:red">Ошибка: ${users.error}</div>`;
+                        return;
+                    }
+                    displayUsers(users);
+                })
+                .catch(err => {
+                    document.getElementById('usersList').innerHTML = `<div style="color:red">Ошибка: ${err}</div>`;
+                });
+        }
+
+        function displayUsers(users) {
+            let html = '<table><tr><th>Username</th><th>Email</th><th>Имя</th><th>Роль</th><th>Статус</th><th>Действия</th></tr>';
+            
+            users.forEach(u => {
+                const status = u.delete_at && u.delete_at !== 0 ? 
+                    '<span class="status-badge status-inactive">Деактивирован</span>' : 
+                    '<span class="status-badge status-active">Активен</span>';
+                
+                const role = u.roles.includes('system_admin') ? 
+                    '<span class="role-badge">Админ</span>' : 
+                    '<span class="role-badge">Пользователь</span>';
+                
+                html += `<tr>
+                    <td>${u.username}</td>
+                    <td>${u.email}</td>
+                    <td>${u.first_name || '-'} ${u.last_name || '-'}</td>
+                    <td>${role}</td>
+                    <td>${status}</td>
+                    <td class="action-group">
+                        <button class="btn btn-info" onclick="editUser('${u.id}', '${u.first_name || ''}', '${u.last_name || ''}')">✏️ Ред</button>
+                        <button class="btn btn-warning" onclick="showAddToTeamModal('${u.id}')">👥 В команду</button>
+                        <button class="btn btn-danger" onclick="deactivateUser('${u.id}', '${u.username}')">🔒 Деакт</button>
+                        <button class="btn btn-danger" onclick="deleteUser('${u.id}', '${u.username}')">🗑️ Удалить</button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            document.getElementById('usersList').innerHTML = html;
+        }
+
+        function filterUsers() {
+            const search = document.getElementById('userSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#usersList table tr:not(:first-child)');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(search) ? '' : 'none';
+            });
+        }
+
+        // Создание пользователя
+        document.getElementById('createUserForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const data = {
+                email: document.getElementById('create_email').value,
+                username: document.getElementById('create_username').value,
+                first_name: document.getElementById('create_firstname').value,
+                last_name: document.getElementById('create_lastname').value,
+                password: document.getElementById('create_password').value
+            };
+            
+            fetch('/api/users/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.id) {
+                    document.getElementById('createUserResult').innerHTML = '<div style="color:green">✅ Пользователь создан!</div>';
+                    document.getElementById('createUserForm').reset();
+                    loadUsers();
+                } else {
+                    document.getElementById('createUserResult').innerHTML = `<div style="color:red">❌ Ошибка: ${result.error || JSON.stringify(result)}</div>`;
+                }
+            })
+            .catch(err => {
+                document.getElementById('createUserResult').innerHTML = `<div style="color:red">❌ Ошибка: ${err}</div>`;
+            });
+        };
+
+        // Редактирование пользователя
+        function editUser(id, firstName, lastName) {
+            document.getElementById('edit_user_id').value = id;
+            document.getElementById('edit_firstname').value = firstName;
+            document.getElementById('edit_lastname').value = lastName;
+            document.getElementById('editUserModal').style.display = 'block';
+        }
+
+        document.getElementById('editUserForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('edit_user_id').value;
+            const data = {
+                first_name: document.getElementById('edit_firstname').value,
+                last_name: document.getElementById('edit_lastname').value
+            };
+            
+            fetch(`/api/users/${id}/edit`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.id) {
+                    alert('✅ Данные обновлены');
+                    closeModal('editUserModal');
+                    loadUsers();
+                } else {
+                    alert('❌ Ошибка: ' + JSON.stringify(result));
+                }
+            });
+        };
+
+        // Деактивация пользователя
+        function deactivateUser(id, username) {
+            if (!confirm(`Деактивировать пользователя ${username}?`)) return;
+            
+            fetch(`/api/users/${id}/deactivate`, {method: 'DELETE'})
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        alert('✅ Пользователь деактивирован');
+                        loadUsers();
+                    } else {
+                        alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                    }
+                });
+        }
+
+        // Полное удаление пользователя
+        function deleteUser(id, username) {
+            if (!confirm(`ВНИМАНИЕ! Полное удаление пользователя ${username} и всех его сообщений. Это действие необратимо!\n\nВведите YES для подтверждения:`)) return;
+            
+            fetch(`/api/users/${id}/delete-permanent`, {method: 'DELETE'})
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        alert('✅ Пользователь полностью удален');
+                        loadUsers();
+                    } else {
+                        alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                    }
+                });
+        }
+
+        // ==============================================
+        // КОМАНДЫ
+        // ==============================================
+
+        function loadTeams() {
+            document.getElementById('teamsList').innerHTML = '<div class="loading">Загрузка...</div>';
+            
+            fetch('/api/teams')
+                .then(res => res.json())
+                .then(teams => {
+                    if (teams.error) {
+                        document.getElementById('teamsList').innerHTML = `<div style="color:red">Ошибка: ${teams.error}</div>`;
+                        return;
+                    }
+                    displayTeams(teams);
+                })
+                .catch(err => {
+                    document.getElementById('teamsList').innerHTML = `<div style="color:red">Ошибка: ${err}</div>`;
+                });
+        }
+
+        function displayTeams(teams) {
+            let html = '<table><tr><th>Название</th><th>Отображаемое имя</th><th>Тип</th><th>Действия</th></tr>';
+            
+            teams.forEach(t => {
+                const type = t.type === 'O' ? 'Открытая' : 'Приватная';
+                html += `<tr>
+                    <td>${t.name}</td>
+                    <td>${t.display_name}</td>
+                    <td>${type}</td>
+                    <td class="action-group">
+                        <button class="btn btn-info" onclick="showTeamMembers('${t.id}', '${t.display_name}')">👥 Участники</button>
+                        <button class="btn btn-danger" onclick="deleteTeam('${t.id}', '${t.display_name}')">🗑️ Удалить</button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            document.getElementById('teamsList').innerHTML = html;
+        }
+
+        function filterTeams() {
+            const search = document.getElementById('teamSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#teamsList table tr:not(:first-child)');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(search) ? '' : 'none';
+            });
+        }
+
+        // Создание команды
+        document.getElementById('createTeamForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('team_name').value,
+                display_name: document.getElementById('team_display_name').value,
+                type: document.getElementById('team_type').value
+            };
+            
+            fetch('/api/teams/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.id) {
+                    document.getElementById('createTeamResult').innerHTML = '<div style="color:green">✅ Команда создана!</div>';
+                    document.getElementById('createTeamForm').reset();
+                    loadTeams();
+                } else {
+                    document.getElementById('createTeamResult').innerHTML = `<div style="color:red">❌ Ошибка: ${result.error || JSON.stringify(result)}</div>`;
+                }
+            })
+            .catch(err => {
+                document.getElementById('createTeamResult').innerHTML = `<div style="color:red">❌ Ошибка: ${err}</div>`;
+            });
+        };
+
+        // Удаление команды
+        function deleteTeam(id, name) {
+            if (!confirm(`Удалить команду ${name}?`)) return;
+            
+            fetch(`/api/teams/${id}/delete`, {method: 'DELETE'})
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        alert('✅ Команда удалена');
+                        loadTeams();
+                    } else {
+                        alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                    }
+                });
+        }
+
+        // Показать участников команды
+        function showTeamMembers(teamId, teamName) {
+            document.getElementById('teamMembersTitle').textContent = `Участники команды: ${teamName}`;
+            document.getElementById('teamMembersList').innerHTML = '<div class="loading">Загрузка...</div>';
+            document.getElementById('teamMembersModal').style.display = 'block';
+            
+            fetch(`/api/teams/${teamId}/users`)
+                .then(res => res.json())
+                .then(members => {
+                    if (members.error) {
+                        document.getElementById('teamMembersList').innerHTML = `<div style="color:red">Ошибка: ${members.error}</div>`;
+                        return;
+                    }
+                    
+                    let html = '<table><tr><th>Пользователь</th><th>Роль</th></tr>';
+                    members.forEach(m => {
+                        html += `<tr><td>${m.user_id}</td><td>${m.roles || 'участник'}</td></tr>`;
+                    });
+                    html += '</table>';
+                    document.getElementById('teamMembersList').innerHTML = html;
+                });
+        }
+
+        // Показать модальное окно добавления в команду
+        function showAddToTeamModal(userId) {
+            document.getElementById('team_user_id').value = userId;
+            
+            fetch('/api/teams')
+                .then(res => res.json())
+                .then(teams => {
+                    let options = '<option value="">-- Выберите команду --</option>';
+                    teams.forEach(t => {
+                        options += `<option value="${t.id}">${t.display_name}</option>`;
+                    });
+                    document.getElementById('team_select').innerHTML = options;
+                    document.getElementById('addUserToTeamModal').style.display = 'block';
+                });
+        }
+
+        // Добавление пользователя в команду
+        document.getElementById('addUserToTeamForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const data = {
+                user_id: document.getElementById('team_user_id').value,
+                team_id: document.getElementById('team_select').value
+            };
+            
+            if (!data.team_id) {
+                alert('Выберите команду');
+                return;
+            }
+            
+            fetch('/api/teams/add-user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    alert('✅ Пользователь добавлен в команду');
+                    closeModal('addUserToTeamModal');
+                    loadUsers();
+                } else {
+                    alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                }
+            });
+        };
+
+        // ==============================================
+        // КАНАЛЫ
+        // ==============================================
+
+        function loadTeamsForChannels() {
+            fetch('/api/teams')
+                .then(res => res.json())
+                .then(teams => {
+                    let options = '<option value="">-- Выберите команду --</option>';
+                    teams.forEach(t => {
+                        options += `<option value="${t.id}">${t.display_name}</option>`;
+                    });
+                    document.getElementById('channelTeamSelect').innerHTML = options;
+                    
+                    // Также заполняем select для создания канала
+                    let createOptions = '<option value="">-- Выберите команду --</option>';
+                    teams.forEach(t => {
+                        createOptions += `<option value="${t.id}">${t.display_name}</option>`;
+                    });
+                    document.getElementById('channel_team_id').innerHTML = createOptions;
+                });
+        }
+
+        function loadChannels() {
+            const teamId = document.getElementById('channelTeamSelect').value;
+            if (!teamId) {
+                document.getElementById('channelsList').innerHTML = '<p>Выберите команду</p>';
+                return;
+            }
+            
+            document.getElementById('channelsList').innerHTML = '<div class="loading">Загрузка...</div>';
+            
+            fetch(`/api/teams/${teamId}/channels`)
+                .then(res => res.json())
+                .then(channels => {
+                    if (channels.error) {
+                        document.getElementById('channelsList').innerHTML = `<div style="color:red">Ошибка: ${channels.error}</div>`;
+                        return;
+                    }
+                    displayChannels(channels, teamId);
+                });
+        }
+
+        function displayChannels(channels, teamId) {
+            let html = '<table><tr><th>Название</th><th>Тип</th><th>Описание</th><th>Действия</th></tr>';
+            
+            channels.forEach(c => {
+                const type = c.type === 'O' ? '🔓 Публичный' : '🔒 Приватный';
+                html += `<tr>
+                    <td>${c.display_name}<br><small>${c.name}</small></td>
+                    <td>${type}</td>
+                    <td>${c.purpose || '-'}</td>
+                    <td class="action-group">
+                        <button class="btn btn-info" onclick="showChannelMembers('${c.id}', '${c.display_name}')">👥 Участники</button>
+                        <button class="btn btn-warning" onclick="showAddToChannelModal('${c.id}', '${teamId}')">👤 Добавить</button>
+                        <button class="btn btn-danger" onclick="deleteChannel('${c.id}', '${c.display_name}')">🗑️ Удалить</button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            document.getElementById('channelsList').innerHTML = html;
+        }
+
+        function filterChannels() {
+            const search = document.getElementById('channelSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#channelsList table tr:not(:first-child)');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(search) ? '' : 'none';
+            });
+        }
+
+        // Создание канала
+        document.getElementById('createChannelForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const data = {
+                team_id: document.getElementById('channel_team_id').value,
+                name: document.getElementById('channel_name').value,
+                display_name: document.getElementById('channel_display_name').value,
+                type: document.getElementById('channel_type').value,
+                purpose: document.getElementById('channel_purpose').value,
+                header: document.getElementById('channel_header').value
+            };
+            
+            if (!data.team_id) {
+                alert('Выберите команду');
+                return;
+            }
+            
+            fetch('/api/channels/create', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.id) {
+                    document.getElementById('createChannelResult').innerHTML = '<div style="color:green">✅ Канал создан!</div>';
+                    document.getElementById('createChannelForm').reset();
+                    loadTeamsForChannels();
+                } else {
+                    document.getElementById('createChannelResult').innerHTML = `<div style="color:red">❌ Ошибка: ${result.error || JSON.stringify(result)}</div>`;
+                }
+            })
+            .catch(err => {
+                document.getElementById('createChannelResult').innerHTML = `<div style="color:red">❌ Ошибка: ${err}</div>`;
+            });
+        };
+
+        // Удаление канала
+        function deleteChannel(id, name) {
+            if (!confirm(`Удалить канал ${name}?`)) return;
+            
+            fetch(`/api/channels/${id}/delete`, {method: 'DELETE'})
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        alert('✅ Канал удален');
+                        loadChannels();
+                    } else {
+                        alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                    }
+                });
+        }
+
+        // Показать участников канала
+        function showChannelMembers(channelId, channelName) {
+            document.getElementById('channelMembersTitle').textContent = `Участники канала: ${channelName}`;
+            document.getElementById('channelMembersList').innerHTML = '<div class="loading">Загрузка...</div>';
+            document.getElementById('channelMembersModal').style.display = 'block';
+            
+            fetch(`/api/channels/${channelId}/users`)
+                .then(res => res.json())
+                .then(members => {
+                    if (members.error) {
+                        document.getElementById('channelMembersList').innerHTML = `<div style="color:red">Ошибка: ${members.error}</div>`;
+                        return;
+                    }
+                    
+                    let html = '<table><tr><th>Пользователь</th><th>Действия</th></tr>';
+                    members.forEach(m => {
+                        html += `<tr>
+                            <td>${m.user_id}</td>
+                            <td><button class="btn btn-danger btn-small" onclick="removeUserFromChannel('${channelId}', '${m.user_id}')">❌ Удалить</button></td>
+                        </tr>`;
+                    });
+                    html += '</table>';
+                    document.getElementById('channelMembersList').innerHTML = html;
+                });
+        }
+
+        function removeUserFromChannel(channelId, userId) {
+            if (!confirm('Удалить пользователя из канала?')) return;
+            
+            fetch(`/api/channels/${channelId}/remove-user/${userId}`, {method: 'DELETE'})
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        alert('✅ Пользователь удален из канала');
+                        showChannelMembers(channelId, '');
+                    } else {
+                        alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                    }
+                });
+        }
+
+        // Показать модальное окно добавления в канал
+        function showAddToChannelModal(channelId, teamId) {
+            document.getElementById('channel_id').value = channelId;
+            
+            // Загружаем всех пользователей
+            fetch('/api/users')
+                .then(res => res.json())
+                .then(users => {
+                    let options = '<option value="">-- Выберите пользователя --</option>';
+                    users.forEach(u => {
+                        options += `<option value="${u.id}">${u.username} (${u.email})</option>`;
+                    });
+                    document.getElementById('channel_user_select').innerHTML = options;
+                    document.getElementById('addUserToChannelModal').style.display = 'block';
+                });
+        }
+
+        document.getElementById('addUserToChannelForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const data = {
+                channel_id: document.getElementById('channel_id').value,
+                user_id: document.getElementById('channel_user_select').value
+            };
+            
+            if (!data.user_id) {
+                alert('Выберите пользователя');
+                return;
+            }
+            
+            fetch('/api/channels/add-user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    alert('✅ Пользователь добавлен в канал');
+                    closeModal('addUserToChannelModal');
+                    loadChannels();
+                } else {
+                    alert('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+                }
+            });
+        };
+
+        // ==============================================
+        // МАССОВОЕ СОЗДАНИЕ
+        // ==============================================
+
+        function bulkCreate() {
+            const data = document.getElementById('bulkData').value;
+            const lines = data.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+            
+            let results = [];
+            let success = 0;
+            let failed = 0;
+            
+            document.getElementById('bulkResult').innerHTML = '<div class="loading">Создание...</div>';
+            
+            function createNext(index) {
+                if (index >= lines.length) {
+                    let resultHtml = `<div style="color:green">✅ Успешно: ${success}</div>`;
+                    if (failed > 0) resultHtml += `<div style="color:red">❌ Ошибок: ${failed}</div>`;
+                    resultHtml += '<pre>' + results.join('\n') + '</pre>';
+                    document.getElementById('bulkResult').innerHTML = resultHtml;
+                    loadUsers();
+                    return;
+                }
+                
+                const parts = lines[index].split(',');
+                if (parts.length >= 5) {
+                    const [email, username, first, last, password] = parts;
+                    
+                    fetch('/api/users/create', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            email: email.trim(),
+                            username: username.trim(),
+                            first_name: first.trim(),
+                            last_name: last.trim(),
+                            password: password.trim()
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(result => {
+                        if (result.id) {
+                            success++;
+                            results.push(`✅ ${username} создан`);
+                        } else {
+                            failed++;
+                            results.push(`❌ ${username}: ${result.error || 'Ошибка'}`);
+                        }
+                        createNext(index + 1);
+                    });
+                } else {
+                    failed++;
+                    results.push(`❌ Строка ${index + 1}: неверный формат`);
+                    createNext(index + 1);
+                }
+            }
+            
+            createNext(0);
+        }
+
+        // Загружаем данные при старте
+        window.onload = function() {
+            loadUsers();
+            loadTeamsForChannels();
+        };
+    </script>
+</body>
+</html>
