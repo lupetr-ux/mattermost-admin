@@ -57,7 +57,7 @@ bash
 
 curl -i -X POST http://127.0.0.1:8065/api/v4/users/login \
   -H "Content-Type: application/json" \
-  -d '{"login_id":"admin@aдрес сервера","password":"Admin123!"}'
+  -d '{"login_id":"Email админа","password":"пароль админа"}'
 
 Скопируйте токен из ответа (после Token:) и вставьте в docker-compose.yml
 Переменные окружения
