@@ -15,6 +15,19 @@ print(f"=== MATTERMOST ADMIN PANEL ===")
 print(f"MATTERMOST_HOST: {MATTERMOST_HOST}")
 print(f"TOKEN: {TOKEN[:10]}...")
 
+# Настройки Keycloak из переменных окружения
+KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL', 'https://auth.alpha.kg')
+KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM', 'mattermost')
+KEYCLOAK_CLIENT = os.environ.get('KEYCLOAK_CLIENT', 'admin-cli')
+KEYCLOAK_SECRET = os.environ.get('KEYCLOAK_SECRET', '')
+
+print(f"KEYCLOAK_URL: {KEYCLOAK_URL}")
+print(f"KEYCLOAK_REALM: {KEYCLOAK_REALM}")
+print(f"KEYCLOAK_CLIENT: {KEYCLOAK_CLIENT}")
+print(f"KEYCLOAK_SECRET: {'ЗАДАН' if KEYCLOAK_SECRET else 'НЕ ЗАДАН!'}")
+
+
+
 headers = {
     "Authorization": f"Bearer {TOKEN}",
     "Content-Type": "application/json"
@@ -324,6 +337,236 @@ def remove_user_from_channel(channel_id, user_id):
         else:
             return jsonify({"error": response.text}), response.status_code
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ==============================================
+# KEYCLOAK ФУНКЦИИ
+# ==============================================
+
+# ==============================================
+# KEYCLOAK ФУНКЦИИ - УПРОЩЕННАЯ ВЕРСИЯ
+# ==============================================
+
+def get_keycloak_token():
+    """Получение токена для доступа к Keycloak API"""
+    try:
+        url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token"
+        print(f"🔄 Получение токена из: {url}")
+        
+        data = {
+            'client_id': KEYCLOAK_CLIENT,
+            'client_secret': KEYCLOAK_SECRET,
+            'grant_type': 'client_credentials'
+        }
+        
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        
+        response = requests.post(url, headers=headers, data=data, timeout=10)
+        
+        print(f"📊 Статус ответа: {response.status_code}")
+        
+        if response.status_code == 200:
+            token_data = response.json()
+            print("✅ Токен получен!")
+            return token_data.get('access_token')
+        else:
+            print(f"❌ Ошибка: {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Исключение: {str(e)}")
+        return None
+
+@app.route('/api/keycloak/users')
+@login_required
+def get_keycloak_users():
+    """Получить список пользователей из Keycloak"""
+    print("="*50)
+    print("Запрос списка пользователей из Keycloak")
+    
+    token = get_keycloak_token()
+    if not token:
+        print("❌ Не удалось получить токен")
+        return jsonify({"error": "Не удалось получить токен Keycloak"}), 500
+    
+    try:
+        url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+        print(f"📡 Запрос к: {url}")
+        
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        print(f"📊 Статус ответа: {response.status_code}")
+        
+        if response.status_code == 200:
+            users = response.json()
+            print(f"✅ Получено пользователей: {len(users)}")
+            
+            formatted_users = []
+            for user in users:
+                formatted_users.append({
+                    'id': user.get('id'),
+                    'username': user.get('username'),
+                    'email': user.get('email'),
+                    'first_name': user.get('firstName', ''),
+                    'last_name': user.get('lastName', ''),
+                    'enabled': user.get('enabled', False)
+                })
+            return jsonify(formatted_users)
+        else:
+            print(f"❌ Ошибка: {response.text}")
+            return jsonify({"error": f"Ошибка Keycloak: {response.status_code}"}), 500
+            
+    except Exception as e:
+        print(f"❌ Исключение: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/keycloak/sync', methods=['POST'])
+@login_required
+def sync_keycloak_users():
+    """Синхронизировать пользователей из Keycloak с Mattermost"""
+    print("="*50)
+    print("Запрос синхронизации пользователей")
+    
+    token = get_keycloak_token()
+    if not token:
+        return jsonify({"error": "Не удалось получить токен Keycloak"}), 500
+    
+    try:
+        # Получаем пользователей из Keycloak
+        url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+        headers_kc = {'Authorization': f'Bearer {token}'}
+        
+        response = requests.get(url, headers=headers_kc, timeout=10)
+        if response.status_code != 200:
+            return jsonify({"error": f"Ошибка Keycloak: {response.status_code}"}), 500
+        
+        keycloak_users = response.json()
+        print(f"📥 Получено {len(keycloak_users)} пользователей из Keycloak")
+        
+        # Получаем пользователей из Mattermost (используем headers, а не headers_mm)
+        mm_response = requests.get(
+            f"{MATTERMOST_HOST}/api/v4/users?per_page=200",
+            headers=headers,  # ← ИСПРАВЛЕНО!
+            timeout=10
+        )
+        
+        if mm_response.status_code != 200:
+            return jsonify({"error": "Не удалось получить пользователей из Mattermost"}), 500
+        
+        mattermost_users = mm_response.json()
+        print(f"📥 Получено {len(mattermost_users)} пользователей из Mattermost")
+        
+        # Создаем словарь пользователей Mattermost по email
+        mm_users_by_email = {}
+        for u in mattermost_users:
+            if u.get('email'):
+                mm_users_by_email[u['email'].lower()] = u
+        
+        results = {
+            'created': [],
+            'updated': [],
+            'skipped': [],
+            'errors': []
+        }
+        
+        # Обрабатываем каждого пользователя из Keycloak
+        for kc_user in keycloak_users:
+            email = kc_user.get('email', '').lower()
+            username = kc_user.get('username')
+            first_name = kc_user.get('firstName', '')
+            last_name = kc_user.get('lastName', '')
+            
+            if not email:
+                results['skipped'].append({
+                    'username': username,
+                    'reason': 'Нет email'
+                })
+                continue
+            
+            if email in mm_users_by_email:
+                # Пользователь существует - проверяем, нужно ли обновить
+                mm_user = mm_users_by_email[email]
+                needs_update = False
+                
+                if mm_user.get('first_name', '') != first_name:
+                    needs_update = True
+                if mm_user.get('last_name', '') != last_name:
+                    needs_update = True
+                
+                if needs_update:
+                    update_response = requests.put(
+                        f"{MATTERMOST_HOST}/api/v4/users/{mm_user['id']}/patch",
+                        headers=headers,  # ← ИСПРАВЛЕНО!
+                        json={
+                            'first_name': first_name,
+                            'last_name': last_name
+                        },
+                        timeout=10
+                    )
+                    
+                    if update_response.status_code == 200:
+                        results['updated'].append({
+                            'email': email,
+                            'username': username,
+                            'first_name': first_name,
+                            'last_name': last_name
+                        })
+                    else:
+                        results['errors'].append({
+                            'email': email,
+                            'error': 'Ошибка обновления'
+                        })
+                else:
+                    results['skipped'].append({
+                        'email': email,
+                        'username': username,
+                        'reason': 'Данные актуальны'
+                    })
+            else:
+                # Пользователя нет - создаем нового
+                import random
+                import string
+                temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+                
+                create_data = {
+                    'email': email,
+                    'username': username,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'password': temp_password
+                }
+                
+                create_response = requests.post(
+                    f"{MATTERMOST_HOST}/api/v4/users",
+                    headers=headers,  # ← ИСПРАВЛЕНО!
+                    json=create_data,
+                    timeout=10
+                )
+                
+                if create_response.status_code == 201:
+                    results['created'].append({
+                        'email': email,
+                        'username': username,
+                        'first_name': first_name,
+                        'last_name': last_name
+                    })
+                else:
+                    results['errors'].append({
+                        'email': email,
+                        'error': f"Ошибка создания: {create_response.text}"
+                    })
+        
+        print(f"✅ Синхронизация завершена: создано {len(results['created'])}, обновлено {len(results['updated'])}")
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f"❌ Ошибка синхронизации: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
